@@ -1,8 +1,9 @@
 #include "chip-8.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include <iostream>
+#include <fstream>
+#include <unistd.h>
 #define FIRSTNIBBLEDIVIDER 0xF000
+using namespace std;
 unsigned char chip8_fontset[80] =
         {
                 0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -39,13 +40,42 @@ void Chip8::initialize(){
     delay_timer = 0;
 
     //load fontset
+    for(int i = 0; i<4096; i++){
+        memory[i] = 0;
+    }
     for(int i = 0 ; i < 80 ; i++){
         memory[i] = chip8_fontset[i];
     }
+    for(int i = 0; i<16; i++){
+        V[i] = 0;
+    }
+}
+bool Chip8::loadrom(string rom) {
+    char* buffer;
+    streampos size;
+
+    string source_name = rom;//Tofix later
+    ifstream sourcefile(source_name,ios::binary|ios::ate);
+    if(sourcefile.is_open()){
+
+        size = sourcefile.tellg();
+        buffer = new char[size];
+        sourcefile.seekg(0,ios::beg);
+        sourcefile.read(buffer,size);
+        sourcefile.close();
+        for(int i = 0;i<size;i++){
+            memory[i+0x200] = buffer[i];
+        }
+        return true;
+    }
+
+    return false;
 }
 void Chip8::emulateCycle(){
     // Fetch Opcode
     opcode = memory[pc] << 8 | memory[pc+1];
+    printf("0x%X-------",opcode);
+    sleep(1);
     // Decode Opcode
     switch(opcode & FIRSTNIBBLEDIVIDER){
         case 0x0000:
@@ -67,6 +97,7 @@ void Chip8::emulateCycle(){
             break;
         case 0x1000:
             pc = opcode & 0x0FFF;
+
             break;
         case 0x2000:
             stack[++stack_pointer] = pc;
@@ -146,7 +177,8 @@ void Chip8::emulateCycle(){
                     break;
                 case 0x000E:
                     V[0xF] = V[(opcode & 0x0F00) >> 8] <<15;
-                    V[(opcode & 0x0F00) >> 8] <<= 1;//to verify
+                    V[(opcode & 0x0F00) >> 8] <<= 1;
+                    pc += 2;//to verify
                     break;
                 default:
                     printf ("Unknown opcode [0x8000]: 0x%X\n", opcode);
@@ -165,6 +197,7 @@ void Chip8::emulateCycle(){
             break;
         case 0xC000:
             V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF & (rand()%255);
+            pc+=2;
             break;
         case 0xD000:
             {
@@ -203,6 +236,7 @@ void Chip8::emulateCycle(){
                         pc += 2;
                     break;
             }
+            pc += 2;
             break;
         case 0xF000:
             switch(opcode & 0x00F0){
@@ -210,7 +244,6 @@ void Chip8::emulateCycle(){
                     switch(opcode & 0x000F){
                         case 0x0007:
                             V[(opcode & 0x0F00) >> 8] = delay_timer;
-                            pc +=2;
                             break;
                         case 0x000A:
                             break;
@@ -243,7 +276,7 @@ void Chip8::emulateCycle(){
                 case 0x0030:
                     memory[I] = V[(opcode & 0x0F00) >> 8]/100;
                     memory[I+1] = (V[(opcode & 0x0F00) >> 8]/10)%10;
-                    memory[I+2] = V[(opcode & 0x0F00) >> 8]/100;
+                    memory[I+2] = V[(opcode & 0x0F00) >> 8]%10;
                     break;
                 case 0x0050:
                     for(int i = 0 ; i<(opcode & 0x0F00) >> 8; i++ ){
@@ -266,7 +299,7 @@ void Chip8::emulateCycle(){
 
     // Update timers
     if(delay_timer > 0)
-        delay_timer;
+        delay_timer--;
     if(sound_timer > 0){
         if(sound_timer == 1)
             printf("Beep\n");

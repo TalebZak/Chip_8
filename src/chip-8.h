@@ -1,4 +1,5 @@
-
+#include <iostream>
+using namespace std;
 class Chip8{
     /*0x000(0) to 0x1FF(511) CHIP-8 interpreter
      0x050(80) to 0x0A0(160) for fontset
@@ -20,5 +21,6 @@ public:
     bool drawFlag;
 
     void initialize();
+    bool loadrom(string);
     void emulateCycle();
 };

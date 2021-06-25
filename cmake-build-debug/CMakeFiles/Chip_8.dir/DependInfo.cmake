@@ -4,16 +4,14 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_CXX
-  "C:/Users/link938/CLionProjects/Chip-8/src/chip-8.cpp" "C:/Users/link938/CLionProjects/Chip-8/cmake-build-debug/CMakeFiles/Chip_8.dir/src/chip-8.cpp.obj"
-  "C:/Users/link938/CLionProjects/Chip-8/src/main.cpp" "C:/Users/link938/CLionProjects/Chip-8/cmake-build-debug/CMakeFiles/Chip_8.dir/src/main.cpp.obj"
+  "/home/zak/CLionProjects/Chip_8/src/chip-8.cpp" "/home/zak/CLionProjects/Chip_8/cmake-build-debug/CMakeFiles/Chip_8.dir/src/chip-8.cpp.o"
+  "/home/zak/CLionProjects/Chip_8/src/main.cpp" "/home/zak/CLionProjects/Chip_8/cmake-build-debug/CMakeFiles/Chip_8.dir/src/main.cpp.o"
   )
 set(CMAKE_CXX_COMPILER_ID "GNU")
 
 # The include file search paths:
 set(CMAKE_CXX_TARGET_INCLUDE_PATH
-  "../OpenGL"
-  "../OpenGL/include"
-  "../OpenGL/lib"
+  "/usr/include/SDL2"
   )
 
 # Targets to which this target links.
