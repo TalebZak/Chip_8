@@ -97,7 +97,7 @@ void Chip8::emulateCycle(){
     // Fetch Opcode
     opcode = memory[pc] << 8 | memory[pc+1];
     printf("0x%X-------",opcode);
-
+    //sleep(0.5);
     bool stop;
     // Decode Opcode
     switch(opcode & FIRSTNIBBLEDIVIDER){
@@ -122,7 +122,6 @@ void Chip8::emulateCycle(){
             break;
         case 0x1000:
             pc = opcode & 0x0FFF;
-
             break;
         case 0x2000:
             stack[++stack_pointer] = pc;
@@ -271,24 +270,18 @@ void Chip8::emulateCycle(){
                     switch(opcode & 0x000F){
                         case 0x0007:
                             V[(opcode & 0x0F00) >> 8] = delay_timer;
+                            pc += 2;
                             break;
                         case 0x000A: {
-                            bool press = false;
-                            SDL_Event event;
-                            for (int i = 0; i < 16; i++) {
-                                keyboard[i] = 0;
-                            }
-                            int val;
-                            while(SDL_PollEvent(&event)){
-                                val = keyboard_reference[event.key.keysym.sym];
-                                keyboard[val] = 1;
-                                cout<<val<<endl;
-                                press = true;
-                            }
-                            V[(opcode & 0x0F00) >> 8] = val;
-                            if(!press){
+                            if(!takeinput()){
                                 return;
                             }
+                            for(int i=0; i<16; i++){
+                                if(keyboard[i] != 0){
+                                    V[(opcode & 0x0F00) >> 8] = i;
+                                }
+                            }
+                            pc += 2;
                         }
                             break;
                         default:
@@ -321,16 +314,19 @@ void Chip8::emulateCycle(){
                     memory[I] = V[(opcode & 0x0F00) >> 8]/100;
                     memory[I+1] = (V[(opcode & 0x0F00) >> 8]/10)%10;
                     memory[I+2] = V[(opcode & 0x0F00) >> 8]%10;
+                    pc += 2;
                     break;
                 case 0x0050:
                     for(int i = 0 ; i<(opcode & 0x0F00) >> 8; i++ ){
                         memory[I+i] = V[i];
                     }
+                    pc += 2;
                     break;
                 case 0x0060:
                     for(int i = 0 ; i<(opcode & 0x0F00) >> 8; i++ ){
                         V[i] = memory[I+i];
                     }
+                    pc += 2;
                     break;
                 default:
                     printf("Unknown opcode [0xF000]: 0x%X\n", opcode);
@@ -349,4 +345,25 @@ void Chip8::emulateCycle(){
             printf("Beep\n");
         sound_timer--;
     }
+}
+bool Chip8::takeinput() {
+    SDL_Event event;
+    bool press = false;
+    for (unsigned char & i : keyboard) {
+        i = 0;
+    }
+    while( SDL_PollEvent( &event ) ){
+        if(event.type == SDL_KEYDOWN){
+            SDL_Keycode keypressed = event.key.keysym.sym;
+            if(keyboard_reference.count(keypressed) != 0){
+                keyboard[keyboard_reference[keypressed]] = 1;
+                press = true;
+            }
+
+        }
+    }
+    for(int i=0;i<16;i++){
+        cout<<i<<"--->"<<keyboard[i]<<endl;
+    }
+    return press;
 }

@@ -35,7 +35,7 @@ int main(int argc, char **argv)
             myChip8.initialize();
 
             if(!myChip8.loadrom(
-                    "/home/zak/CLionProjects/Chip_8/tests/chip8-test-rom.ch8")){
+                    "/home/zak/CLionProjects/Chip_8/tests/BC_test.ch8")){
                 cout<<"No valid rom";
                 return 0;
             }

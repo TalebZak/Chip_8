@@ -23,4 +23,6 @@ public:
     void initialize();
     bool loadrom(string);
     void emulateCycle();
+private:
+    bool takeinput();
 };
