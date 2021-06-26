@@ -170,7 +170,7 @@ void Chip8::emulateCycle(){
                     pc += 2;
                     break;
                 case 0x0004:
-                    if(V[(opcode & 0x00F0) >> 4] + (0xFF - V[(opcode & 0x0F00) >> 8]))
+                    if(V[(opcode & 0x00F0) >> 4] + V[(opcode & 0x0F00) >> 8] > 255)
                         V[0xF] = 1; //carry
                     else
                         V[0xF] = 0;
