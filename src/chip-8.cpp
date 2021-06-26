@@ -2,6 +2,9 @@
 #include <iostream>
 #include <fstream>
 #include <unistd.h>
+#include <unordered_map>
+#include <utility>
+#include <SDL.h>
 #define FIRSTNIBBLEDIVIDER 0xF000
 using namespace std;
 unsigned char chip8_fontset[80] =
@@ -23,6 +26,25 @@ unsigned char chip8_fontset[80] =
                 0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
                 0xF0, 0x80, 0xF0, 0x80, 0x80  // F
         };
+unordered_map<SDL_Keycode,int> keyboard_reference = {
+        {SDLK_0,0x0},
+        {SDLK_1,0x1},
+        {SDLK_2,0x2},
+        {SDLK_3,0x3},
+        {SDLK_4,0x4},
+        {SDLK_5,0x5},
+        {SDLK_6,0x6},
+        {SDLK_7,0x7},
+        {SDLK_8,0x8},
+        {SDLK_9,0x9},
+        {SDLK_a,0xA},
+        {SDLK_b,0xB},
+        {SDLK_c,0xC},
+        {SDLK_d,0xD},
+        {SDLK_e,0xE},
+        {SDLK_f,0xF},
+
+};
 Chip8::Chip8(){
 
 }
@@ -54,7 +76,7 @@ bool Chip8::loadrom(string rom) {
     char* buffer;
     streampos size;
 
-    string source_name = rom;//Tofix later
+    string source_name = move(rom);//Tofix later
     ifstream sourcefile(source_name,ios::binary|ios::ate);
     if(sourcefile.is_open()){
 
@@ -75,7 +97,8 @@ void Chip8::emulateCycle(){
     // Fetch Opcode
     opcode = memory[pc] << 8 | memory[pc+1];
     printf("0x%X-------",opcode);
-    sleep(1);
+
+    bool stop;
     // Decode Opcode
     switch(opcode & FIRSTNIBBLEDIVIDER){
         case 0x0000:
@@ -83,16 +106,18 @@ void Chip8::emulateCycle(){
                 case 0x0000:
                     //clear
                     for (int i = 0; i < 64*32; i++) {
-                        gfx[i] = 0;
+                        gfx[i] = false;
                     }
                     drawFlag = true;
                     pc += 2;
                     break;
                 case 0x000E:
                     pc = stack[stack_pointer--];
+                    pc+=2;
                     break;
                 default:
                     printf ("Unknown opcode [0x0000]: 0x%X\n", opcode);
+                    stop = true;
             }
             break;
         case 0x1000:
@@ -182,11 +207,13 @@ void Chip8::emulateCycle(){
                     break;
                 default:
                     printf ("Unknown opcode [0x8000]: 0x%X\n", opcode);
+                    stop = true;
             }
             break;
         case 0x9000:
             if(V[(opcode & 0x0F00) >> 8] != V[(opcode & 0x00F0) >> 4])
                 pc += 2;
+            pc += 2;
             break;
         case 0xA000:
             I = opcode & 0x0FFF;
@@ -245,7 +272,24 @@ void Chip8::emulateCycle(){
                         case 0x0007:
                             V[(opcode & 0x0F00) >> 8] = delay_timer;
                             break;
-                        case 0x000A:
+                        case 0x000A: {
+                            bool press = false;
+                            SDL_Event event;
+                            for (int i = 0; i < 16; i++) {
+                                keyboard[i] = 0;
+                            }
+                            int val;
+                            while(SDL_PollEvent(&event)){
+                                val = keyboard_reference[event.key.keysym.sym];
+                                keyboard[val] = 1;
+                                cout<<val<<endl;
+                                press = true;
+                            }
+                            V[(opcode & 0x0F00) >> 8] = val;
+                            if(!press){
+                                return;
+                            }
+                        }
                             break;
                         default:
                             printf("Todo,line213");

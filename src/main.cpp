@@ -28,14 +28,14 @@ int main(int argc, char **argv)
             SDL_Surface* screenSurface = SDL_GetWindowSurface(window);
             SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, 0);
             SDL_Texture * texture = SDL_CreateTexture(renderer,
-                                                      SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, 64, 64);
+                                                      SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 64, 64);
             auto* pixels = new uint32_t[ 2048 ];
             int pitch;
 
             myChip8.initialize();
 
             if(!myChip8.loadrom(
-                    "/home/zak/CLionProjects/Chip_8/tests/IBM_Logo.ch8")){
+                    "/home/zak/CLionProjects/Chip_8/tests/chip8-test-rom.ch8")){
                 cout<<"No valid rom";
                 return 0;
             }
@@ -58,7 +58,8 @@ int main(int argc, char **argv)
                     }
                     else
                     {
-                        pixels[i] = 0b00101011;
+
+                        pixels[i] = 0xffffffff;
                     }
                 }
 
