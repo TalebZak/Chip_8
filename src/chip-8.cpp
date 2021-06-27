@@ -26,23 +26,23 @@ unsigned char chip8_fontset[80] =
                 0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
                 0xF0, 0x80, 0xF0, 0x80, 0x80  // F
         };
-unordered_map<SDL_Keycode,int> keyboard_reference = {
-        {SDLK_0,0x0},
-        {SDLK_1,0x1},
-        {SDLK_2,0x2},
-        {SDLK_3,0x3},
-        {SDLK_4,0x4},
-        {SDLK_5,0x5},
-        {SDLK_6,0x6},
-        {SDLK_7,0x7},
-        {SDLK_8,0x8},
-        {SDLK_9,0x9},
-        {SDLK_a,0xA},
-        {SDLK_b,0xB},
-        {SDLK_c,0xC},
-        {SDLK_d,0xD},
-        {SDLK_e,0xE},
-        {SDLK_f,0xF},
+unordered_map<SDL_Keycode,int> keyboard_map = {
+        {SDLK_1,0x0},
+        {SDLK_2,0x1},
+        {SDLK_3,0x2},
+        {SDLK_4,0x3},
+        {SDLK_q,0x4},
+        {SDLK_w,0x5},
+        {SDLK_e,0x6},
+        {SDLK_r,0x7},
+        {SDLK_a,0x8},
+        {SDLK_s,0x9},
+        {SDLK_d,0xA},
+        {SDLK_f,0xB},
+        {SDLK_z,0xC},
+        {SDLK_x,0xD},
+        {SDLK_c,0xE},
+        {SDLK_v,0xF},
 
 };
 Chip8::Chip8(){
@@ -76,7 +76,7 @@ bool Chip8::loadrom(string rom) {
     char* buffer;
     streampos size;
 
-    string source_name = move(rom);//Tofix later
+    string source_name = move(rom);
     ifstream sourcefile(source_name,ios::binary|ios::ate);
     if(sourcefile.is_open()){
 
@@ -98,6 +98,7 @@ void Chip8::emulateCycle(){
     opcode = memory[pc] << 8 | memory[pc+1];
     printf("0x%X-------",opcode);
     //sleep(0.5);
+    takeinput();
     bool stop;
     // Decode Opcode
     switch(opcode & FIRSTNIBBLEDIVIDER){
@@ -150,7 +151,6 @@ void Chip8::emulateCycle(){
             V[(opcode & 0x0F00) >> 8] += opcode & 0x00FF;
             pc += 2;
             break;
-            break;
         case 0x8000:
             switch(opcode & 0x000F){
                 case 0x0000:
@@ -178,7 +178,7 @@ void Chip8::emulateCycle(){
                     pc += 2;
                     break;
                 case 0x0005:
-                    if(V[(opcode & 0x0F00) >> 8]<V[(opcode & 0x00F0) >> 4])
+                    if(V[(opcode & 0x0F00) >> 8]>V[(opcode & 0x00F0) >> 4])
                         V[0xF] = 1; //borrow
                     else
                         V[0xF] = 0;
@@ -186,7 +186,7 @@ void Chip8::emulateCycle(){
                     pc += 2;
                     break;
                 case 0x0006:
-                    V[0xF] = V[(opcode & 0x0F00) >> 8] >>15;
+                    V[0xF] = V[(opcode & 0x0F00) >> 8] >>7;
                     V[(opcode & 0x0F00) >> 8]  >>=1;//to verify
 
                     pc += 2;
@@ -200,8 +200,8 @@ void Chip8::emulateCycle(){
                     pc += 2;
                     break;
                 case 0x000E:
-                    V[0xF] = V[(opcode & 0x0F00) >> 8] <<15;
-                    V[(opcode & 0x0F00) >> 8] <<= 1;
+                    V[0xF] = V[(opcode & 0x0F00) >> 8] <<7;
+                    V[(opcode & 0x0F00) >> 8] *= 2;
                     pc += 2;//to verify
                     break;
                 default:
@@ -256,13 +256,17 @@ void Chip8::emulateCycle(){
                 case 0x0090:
                     if (keyboard[V[(opcode & 0x0F00) >> 8]] != 0)
                         pc += 2;
+                    pc += 2;
                     break;
                 case 0x00A0:
                     if (keyboard[V[(opcode & 0x0F00) >> 8]] == 0)
                         pc += 2;
+                    pc += 2;
                     break;
+                default:
+                    printf("does not exist");
             }
-            pc += 2;
+
             break;
         case 0xF000:
             switch(opcode & 0x00F0){
@@ -273,13 +277,15 @@ void Chip8::emulateCycle(){
                             pc += 2;
                             break;
                         case 0x000A: {
-                            if(!takeinput()){
-                                return;
-                            }
+                            bool press = false;
                             for(int i=0; i<16; i++){
                                 if(keyboard[i] != 0){
                                     V[(opcode & 0x0F00) >> 8] = i;
+                                    press = true;
                                 }
+                            }
+                            if(!press){
+                                break;
                             }
                             pc += 2;
                         }
@@ -346,24 +352,25 @@ void Chip8::emulateCycle(){
         sound_timer--;
     }
 }
-bool Chip8::takeinput() {
+void Chip8::takeinput() {
     SDL_Event event;
-    bool press = false;
+
     for (unsigned char & i : keyboard) {
         i = 0;
     }
     while( SDL_PollEvent( &event ) ){
+        SDL_Keycode keypressed = event.key.keysym.sym;
         if(event.type == SDL_KEYDOWN){
-            SDL_Keycode keypressed = event.key.keysym.sym;
-            if(keyboard_reference.count(keypressed) != 0){
-                keyboard[keyboard_reference[keypressed]] = 1;
-                press = true;
-            }
 
+            if(keyboard_map.find(keypressed) != keyboard_map.end()){
+                keyboard[keyboard_map[keypressed]] = 1;
+            }
+        }
+        else if(event.type == SDL_KEYUP){
+            if(keyboard_map.find(keypressed) != keyboard_map.end()){
+                keyboard[keyboard_map[keypressed]] = 0;
+            }
         }
     }
-    for(int i=0;i<16;i++){
-        cout<<i<<"--->"<<keyboard[i]<<endl;
-    }
-    return press;
+
 }

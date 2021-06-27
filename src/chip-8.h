@@ -24,5 +24,5 @@ public:
     bool loadrom(string);
     void emulateCycle();
 private:
-    bool takeinput();
+    void takeinput();
 };
