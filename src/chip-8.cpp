@@ -4,8 +4,6 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <utility>
-#include <SDL.h>
-#define FIRSTNIBBLEDIVIDER 0xF000
 using namespace std;
 unsigned char chip8_fontset[80] =
         {
@@ -26,51 +24,33 @@ unsigned char chip8_fontset[80] =
                 0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
                 0xF0, 0x80, 0xF0, 0x80, 0x80  // F
         };
-unordered_map<SDL_Keycode,int> keyboard_map = {
-        {SDLK_1,0x0},
-        {SDLK_2,0x1},
-        {SDLK_3,0x2},
-        {SDLK_4,0x3},
-        {SDLK_q,0x4},
-        {SDLK_w,0x5},
-        {SDLK_e,0x6},
-        {SDLK_r,0x7},
-        {SDLK_a,0x8},
-        {SDLK_s,0x9},
-        {SDLK_d,0xA},
-        {SDLK_f,0xB},
-        {SDLK_z,0xC},
-        {SDLK_x,0xD},
-        {SDLK_c,0xE},
-        {SDLK_v,0xF},
 
-};
 Chip8::Chip8(){
-
-}
-Chip8::~Chip8(){
-
-}
-void Chip8::initialize(){
     // Initialize registers and memory once
     pc = 0x200;
     opcode = 0;
     I = 0;
     stack_pointer = 0;
-    drawFlag = true;
+    drawFlag = false;
     sound_timer = 0;
     delay_timer = 0;
-
+    int i;
     //load fontset
-    for(int i = 0; i<4096; i++){
+    for(i = 0; i<4096; i++){
         memory[i] = 0;
     }
-    for(int i = 0 ; i < 80 ; i++){
+    for(i = 0 ; i < 80 ; i++){
         memory[i] = chip8_fontset[i];
     }
-    for(int i = 0; i<16; i++){
+    for(i = 0; i<16; i++){
         V[i] = 0;
     }
+    for(int i = 0; i< 64*32 ; i++){
+        gfx[i] = false;
+    }
+}
+Chip8::~Chip8(){
+
 }
 bool Chip8::loadrom(string rom) {
     char* buffer;
@@ -93,256 +73,235 @@ bool Chip8::loadrom(string rom) {
 
     return false;
 }
+void Chip8::CLS(){
+    for (int i = 0; i < 64*32; i++) {
+        gfx[i] = false;
+    }
+
+    drawFlag = true;
+    pc += 2;
+}
+void Chip8::RET(){
+    pc = stack[--stack_pointer];
+    pc+=2;
+}
+void Chip8::JP_addr(){
+    pc = opcode & 0x0FFF;
+}
+void Chip8::CALL_addr(){
+    stack[stack_pointer++] = pc;
+    pc = opcode & 0x0FFF;
+}
+void Chip8::SE_vx_byte(){
+    if(V[(opcode & 0x0F00) >> 8] == (opcode & 0x00FF))
+        pc += 2;
+    pc += 2;
+}
+void Chip8::SNE_vx_byte(){
+    if(V[(opcode & 0x0F00) >> 8] != (opcode & 0x00FF))
+        pc += 2;
+    pc += 2;
+}
+void Chip8::SE_vx_vy(){
+    if(V[(opcode & 0x0F00) >> 8] == V[(opcode & 0x00F0) >> 4])
+        pc += 2;
+    pc += 2;
+}
+void Chip8::LD_vx_byte(){
+    V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF;
+    pc += 2;
+}
+void Chip8::ADD_vx_byte(){
+    V[(opcode & 0x0F00) >> 8] += opcode & 0x00FF;
+    pc += 2;
+}
+void Chip8::LD_vx_vy(){
+    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x00F0) >> 4];
+    pc += 2;
+}
+void Chip8::OR_vx_vy(){
+    V[(opcode & 0x0F00) >> 8] |= V[(opcode & 0x00F0) >> 4];
+    pc += 2;
+}
+void Chip8::AND_vx_vy(){
+    V[(opcode & 0x0F00) >> 8] &= V[(opcode & 0x00F0) >> 4];
+    pc += 2;
+}
+void Chip8::XOR_vx_vy(){
+    V[(opcode & 0x0F00) >> 8] ^= V[(opcode & 0x00F0) >> 4];
+    pc += 2;
+}
+void Chip8::ADD_vx_vy(){
+    if(V[(opcode & 0x00F0) >> 4] + V[(opcode & 0x0F00) >> 8] > 255)
+        V[0xF] = 1; //carry
+    else
+        V[0xF] = 0;
+    V[(opcode & 0x0F00) >> 8] = (V[(opcode & 0x00F0) >> 4] + V[(opcode & 0x0F00) >> 8])&255;
+    pc += 2;
+}
+void Chip8::SUB_vx_vy(){
+    if(V[(opcode & 0x0F00) >> 8]>=V[(opcode & 0x00F0) >> 4])
+        V[0xF] = 1;
+    else
+        V[0xF] = 0;//borrow
+    V[(opcode & 0x0F00) >> 8] -= V[(opcode & 0x00F0) >> 4];
+    pc += 2;
+}
+void Chip8::SHR_vx_vy(){
+    V[0xF] = V[(opcode & 0x0F00) >> 8] <<7;
+    V[(opcode & 0x0F00) >> 8]  /= 2;//to verify
+    pc += 2;
+}
+void Chip8::SUBN_vx_vy(){
+    if(V[(opcode & 0x00F0) >> 4] >= V[(opcode & 0x0F00) >> 8])
+        V[0xF] = 1;
+    else
+        V[0xF] = 0;//borrow
+    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x00F0) >> 4]-V[(opcode & 0x0F00) >> 8];
+    pc += 2;
+}
+void Chip8::SHL_vx_vy(){
+    V[0xF] = V[(opcode & 0x0F00) >> 8] >>7;
+    V[(opcode & 0x0F00) >> 8] *= 2;
+    pc += 2;//to verify
+}
+void Chip8::SNE_vx_vy(){
+    if(V[(opcode & 0x0F00) >> 8] != V[(opcode & 0x00F0) >> 4])
+        pc += 2;
+    pc += 2;
+}
+void Chip8::LD_I_addr(){
+    I = opcode & 0x0FFF;
+    pc += 2;
+}
+void Chip8::JP_v0_addr(){
+    pc = V[0] + (opcode & 0x0FFF);
+}
+void Chip8::RND_vx_byte(){
+    V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF & (rand()%255);
+    pc+=2;
+}
+void Chip8::DRW_vy_vy_nibble(){
+    unsigned short x = V[(opcode & 0x0F00) >> 8];
+    unsigned short y = V[(opcode & 0x00F0) >> 4];
+    unsigned short height = opcode & 0x000F;
+    unsigned short pixel;
+
+    V[0xF] = 0;
+    for (int yline = 0; yline < height; yline++)
+    {
+        pixel = memory[I + yline];
+        for(int xline = 0; xline < 8; xline++)
+        {
+            if((pixel & (0x80 >> xline)) != 0)
+            {
+                if(gfx[(x + xline + ((y + yline) * 64))] == 1)
+                    V[0xF] = 1;
+                gfx[x + xline + ((y + yline) * 64)] ^= 1;
+            }
+        }
+    }
+
+    drawFlag = true;
+    pc += 2;
+}
+void Chip8::SKP_vx(){
+    if (keyboard[V[(opcode & 0x0F00) >> 8]] != 0)
+        pc += 2;
+    pc += 2;
+}
+void Chip8::SKNP_vx(){
+    if (keyboard[V[(opcode & 0x0F00) >> 8]] == 0)
+        pc += 2;
+    pc += 2;
+}
+void Chip8::LD_vx_dt(){
+    V[(opcode & 0x0F00) >> 8] = delay_timer;
+    pc += 2;
+}
+void Chip8::LD_vx_k(){
+    bool press = false;
+    for(int i=0; i<16; i++){
+        if(keyboard[i] != 0){
+            V[(opcode & 0x0F00) >> 8] = i;
+            press = true;
+        }
+    }
+    if(!press){
+        return;
+    }
+    pc += 2;
+}
+void Chip8::LD_dt_vx(){
+    delay_timer = V[(opcode & 0x0F00) >> 8];
+    pc += 2;
+}
+void Chip8::LD_st_vx(){
+    sound_timer = V[(opcode & 0x0F00) >> 8];
+    pc += 2;
+}
+void Chip8::ADD_i_vx(){
+    I += V[(opcode & 0x0F00) >> 8];
+    pc += 2;
+}
+void Chip8::LD_f_vx(){
+    I = chip8_fontset[V[(opcode & 0x0F00) >> 8]];
+    pc += 2;
+}
+void Chip8::LD_B_vx(){
+    printf("%d\n",V[(opcode & 0x0F00) >> 8]);
+    memory[I] = V[(opcode & 0x0F00) >> 8]/100;
+    printf("%d\n",memory[I]);
+    memory[I+1] = (V[(opcode & 0x0F00) >> 8]/10)%10;
+    printf("%d\n",memory[I+1]);
+    memory[I+2] = V[(opcode & 0x0F00) >> 8]%10;
+    printf("%d\n",memory[I+2]);
+    pc += 2;
+}
+void Chip8::LD_i_vx(){
+    printf("%d\n",(opcode & 0x0F00) >> 8);
+    for(int i = 0 ; i<=(opcode & 0x0F00) >> 8; i++ ){
+        memory[I+i] = V[i];
+        printf("%d\n",memory[I+i]);
+    }
+    pc += 2;
+}
+void Chip8::LD_vx_i(){
+    for(int i = 0 ; i<=(opcode & 0x0F00) >> 8; i++ ){
+        V[i] = memory[I+i];
+    }
+    pc += 2;
+}
+void Chip8::decode() {
+    unsigned short calculated_opcode = opcode & 0xF000;
+    switch(calculated_opcode){
+        case 0x0000:
+        case 0x8000:
+        case 0xE000:
+            calculated_opcode = opcode & 0xF00F;
+            break;
+        case 0xF000:
+            calculated_opcode = opcode & 0xF0FF;
+        default:
+            break;
+    }
+    if(decoder.contains(calculated_opcode)){
+        using OpcodeHandler = void(Chip8::*)();
+        OpcodeHandler opcode_handler = decoder.at(calculated_opcode);
+        (this->*opcode_handler)();
+    }
+
+    else
+        printf ("Unknown opcode [0x%X]: 0x%X\n",
+                calculated_opcode, opcode);
+
+}
 void Chip8::emulateCycle(){
     // Fetch Opcode
     opcode = memory[pc] << 8 | memory[pc+1];
     printf("0x%X-------",opcode);
-    //sleep(0.5);
-    takeinput();
-    bool stop;
-    // Decode Opcode
-    switch(opcode & FIRSTNIBBLEDIVIDER){
-        case 0x0000:
-            switch(opcode & 0x000F){
-                case 0x0000:
-                    //clear
-                    for (int i = 0; i < 64*32; i++) {
-                        gfx[i] = false;
-                    }
-                    drawFlag = true;
-                    pc += 2;
-                    break;
-                case 0x000E:
-                    pc = stack[stack_pointer--];
-                    pc+=2;
-                    break;
-                default:
-                    printf ("Unknown opcode [0x0000]: 0x%X\n", opcode);
-                    stop = true;
-            }
-            break;
-        case 0x1000:
-            pc = opcode & 0x0FFF;
-            break;
-        case 0x2000:
-            stack[++stack_pointer] = pc;
-            pc = opcode & 0x0FFF;
-            break;
-        case 0x3000:
-            if(V[(opcode & 0x0F00) >> 8] == (opcode & 0x00FF))
-                pc += 2;
-            pc += 2;
-            break;
-        case 0x4000:
-            if(V[(opcode & 0x0F00) >> 8] != (opcode & 0x00FF))
-                pc += 2;
-            pc += 2;
-            break;
-        case 0x5000:
-            if(V[(opcode & 0x0F00) >> 8] == V[(opcode & 0x00F0) >> 4])
-                pc += 2;
-            pc += 2;
-            break;
-        case 0x6000:
-            V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF;
-            pc += 2;
-            break;
-        case 0x7000:
-            V[(opcode & 0x0F00) >> 8] += opcode & 0x00FF;
-            pc += 2;
-            break;
-        case 0x8000:
-            switch(opcode & 0x000F){
-                case 0x0000:
-                    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x00F0) >> 4];
-                    pc += 2;
-                    break;
-                case 0x0001:
-                    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x0F00) >> 8] | V[(opcode & 0x00F0) >> 4];
-                    pc += 2;
-                    break;
-                case 0x0002:
-                    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x0F00) >> 8] & V[(opcode & 0x00F0) >> 4];
-                    pc += 2;
-                    break;
-                case 0x0003:
-                    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x0F00) >> 8] ^ V[(opcode & 0x00F0) >> 4];
-                    pc += 2;
-                    break;
-                case 0x0004:
-                    if(V[(opcode & 0x00F0) >> 4] + V[(opcode & 0x0F00) >> 8] > 255)
-                        V[0xF] = 1; //carry
-                    else
-                        V[0xF] = 0;
-                    V[(opcode & 0x0F00) >> 8] += V[(opcode & 0x00F0) >> 4];
-                    pc += 2;
-                    break;
-                case 0x0005:
-                    if(V[(opcode & 0x0F00) >> 8]>V[(opcode & 0x00F0) >> 4])
-                        V[0xF] = 1; //borrow
-                    else
-                        V[0xF] = 0;
-                    V[(opcode & 0x0F00) >> 8] -= V[(opcode & 0x00F0) >> 4];
-                    pc += 2;
-                    break;
-                case 0x0006:
-                    V[0xF] = V[(opcode & 0x0F00) >> 8] >>7;
-                    V[(opcode & 0x0F00) >> 8]  >>=1;//to verify
-
-                    pc += 2;
-                    break;
-                case 0x0007:
-                    if(V[(opcode & 0x00F0) >> 4] > V[(opcode & 0x0F00) >> 8])
-                        V[0xF] = 1; //borrow
-                    else
-                        V[0xF] = 0;
-                    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x00F0) >> 4]-V[(opcode & 0x0F00) >> 8];
-                    pc += 2;
-                    break;
-                case 0x000E:
-                    V[0xF] = V[(opcode & 0x0F00) >> 8] <<7;
-                    V[(opcode & 0x0F00) >> 8] *= 2;
-                    pc += 2;//to verify
-                    break;
-                default:
-                    printf ("Unknown opcode [0x8000]: 0x%X\n", opcode);
-                    stop = true;
-            }
-            break;
-        case 0x9000:
-            if(V[(opcode & 0x0F00) >> 8] != V[(opcode & 0x00F0) >> 4])
-                pc += 2;
-            pc += 2;
-            break;
-        case 0xA000:
-            I = opcode & 0x0FFF;
-            pc += 2;
-            break;
-        case 0xB000:
-            pc = V[0] + (opcode & 0x0FFF);
-            break;
-        case 0xC000:
-            V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF & (rand()%255);
-            pc+=2;
-            break;
-        case 0xD000:
-            {
-                unsigned short x = V[(opcode & 0x0F00) >> 8];
-                unsigned short y = V[(opcode & 0x00F0) >> 4];
-                unsigned short height = opcode & 0x000F;
-                unsigned short pixel;
-
-                V[0xF] = 0;
-                for (int yline = 0; yline < height; yline++)
-                {
-                    pixel = memory[I + yline];
-                    for(int xline = 0; xline < 8; xline++)
-                    {
-                        if((pixel & (0x80 >> xline)) != 0)
-                        {
-                            if(gfx[(x + xline + ((y + yline) * 64))] == 1)
-                                V[0xF] = 1;
-                            gfx[x + xline + ((y + yline) * 64)] ^= 1;
-                        }
-                    }
-                }
-
-                drawFlag = true;
-                pc += 2;
-            }
-            break;
-        case 0xE000:
-            switch(opcode & 0x00F0) {
-                case 0x0090:
-                    if (keyboard[V[(opcode & 0x0F00) >> 8]] != 0)
-                        pc += 2;
-                    pc += 2;
-                    break;
-                case 0x00A0:
-                    if (keyboard[V[(opcode & 0x0F00) >> 8]] == 0)
-                        pc += 2;
-                    pc += 2;
-                    break;
-                default:
-                    printf("does not exist");
-            }
-
-            break;
-        case 0xF000:
-            switch(opcode & 0x00F0){
-                case 0x0000:
-                    switch(opcode & 0x000F){
-                        case 0x0007:
-                            V[(opcode & 0x0F00) >> 8] = delay_timer;
-                            pc += 2;
-                            break;
-                        case 0x000A: {
-                            bool press = false;
-                            for(int i=0; i<16; i++){
-                                if(keyboard[i] != 0){
-                                    V[(opcode & 0x0F00) >> 8] = i;
-                                    press = true;
-                                }
-                            }
-                            if(!press){
-                                break;
-                            }
-                            pc += 2;
-                        }
-                            break;
-                        default:
-                            printf("Todo,line213");
-                    }
-                    break;
-                case 0x0010:
-                    switch(opcode & 0x000F){
-                        case 0x0005:
-                            delay_timer = V[(opcode & 0x0F00) >> 8];
-                            pc += 2;
-                            break;
-                        case 0x0008:
-                            sound_timer = V[(opcode & 0x0F00) >> 8];
-                            pc += 2;
-                            break;
-                        case 0x000E:
-                            I += V[(opcode & 0x0F00) >> 8];
-                            pc += 2;
-                            break;
-                        default:
-                            printf("Unknown opcode [0xFx10]: 0x%X\n", opcode);
-                    }
-                    break;
-                case 0x0020:
-                    I = chip8_fontset[V[(opcode & 0x0F00) >> 8]];
-                    pc += 2;
-                    break;
-                case 0x0030:
-                    memory[I] = V[(opcode & 0x0F00) >> 8]/100;
-                    memory[I+1] = (V[(opcode & 0x0F00) >> 8]/10)%10;
-                    memory[I+2] = V[(opcode & 0x0F00) >> 8]%10;
-                    pc += 2;
-                    break;
-                case 0x0050:
-                    for(int i = 0 ; i<(opcode & 0x0F00) >> 8; i++ ){
-                        memory[I+i] = V[i];
-                    }
-                    pc += 2;
-                    break;
-                case 0x0060:
-                    for(int i = 0 ; i<(opcode & 0x0F00) >> 8; i++ ){
-                        V[i] = memory[I+i];
-                    }
-                    pc += 2;
-                    break;
-                default:
-                    printf("Unknown opcode [0xF000]: 0x%X\n", opcode);
-            }
-            break;
-        default:
-            printf("unknown opcode: 0x%X\n", opcode);
-    }
     // Execute Opcode
-
+    decode();
     // Update timers
     if(delay_timer > 0)
         delay_timer--;
@@ -352,7 +311,7 @@ void Chip8::emulateCycle(){
         sound_timer--;
     }
 }
-void Chip8::takeinput() {
+/*void Chip8::takeinput() {
     SDL_Event event;
 
     for (unsigned char & i : keyboard) {
@@ -361,7 +320,7 @@ void Chip8::takeinput() {
     while( SDL_PollEvent( &event ) ){
         SDL_Keycode keypressed = event.key.keysym.sym;
         if(event.type == SDL_KEYDOWN){
-
+            //to edit later hadchi ila b9at
             if(keyboard_map.find(keypressed) != keyboard_map.end()){
                 keyboard[keyboard_map[keypressed]] = 1;
             }
@@ -373,4 +332,6 @@ void Chip8::takeinput() {
         }
     }
 
-}
+}*/
+
+
