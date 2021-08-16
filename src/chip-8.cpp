@@ -1,9 +1,10 @@
 #include "chip-8.h"
 #include <iostream>
 #include <fstream>
-#include <unistd.h>
 #include <unordered_map>
 #include <utility>
+#define Vx V[(opcode & 0x0F00) >> 8]
+#define Vy V[(opcode & 0x00F0) >> 4]
 using namespace std;
 unsigned char chip8_fontset[80] =
         {
@@ -93,80 +94,71 @@ void Chip8::CALL_addr(){
     pc = opcode & 0x0FFF;
 }
 void Chip8::SE_vx_byte(){
-    if(V[(opcode & 0x0F00) >> 8] == (opcode & 0x00FF))
+    if(Vx == (opcode & 0x00FF))
         pc += 2;
     pc += 2;
 }
 void Chip8::SNE_vx_byte(){
-    if(V[(opcode & 0x0F00) >> 8] != (opcode & 0x00FF))
+    if(Vx != (opcode & 0x00FF))
         pc += 2;
     pc += 2;
 }
 void Chip8::SE_vx_vy(){
-    if(V[(opcode & 0x0F00) >> 8] == V[(opcode & 0x00F0) >> 4])
+    if(Vx == Vy)
         pc += 2;
     pc += 2;
 }
 void Chip8::LD_vx_byte(){
-    V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF;
+    Vx = opcode & 0x00FF;
     pc += 2;
 }
 void Chip8::ADD_vx_byte(){
-    V[(opcode & 0x0F00) >> 8] += opcode & 0x00FF;
+    Vx += opcode & 0x00FF;
     pc += 2;
 }
 void Chip8::LD_vx_vy(){
-    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x00F0) >> 4];
+    Vx = Vy;
     pc += 2;
 }
 void Chip8::OR_vx_vy(){
-    V[(opcode & 0x0F00) >> 8] |= V[(opcode & 0x00F0) >> 4];
+    Vx |= Vy;
     pc += 2;
 }
 void Chip8::AND_vx_vy(){
-    V[(opcode & 0x0F00) >> 8] &= V[(opcode & 0x00F0) >> 4];
+    Vx &= Vy;
     pc += 2;
 }
 void Chip8::XOR_vx_vy(){
-    V[(opcode & 0x0F00) >> 8] ^= V[(opcode & 0x00F0) >> 4];
+    Vx ^= Vy;
     pc += 2;
 }
 void Chip8::ADD_vx_vy(){
-    if(V[(opcode & 0x00F0) >> 4] + V[(opcode & 0x0F00) >> 8] > 255)
-        V[0xF] = 1; //carry
-    else
-        V[0xF] = 0;
-    V[(opcode & 0x0F00) >> 8] = (V[(opcode & 0x00F0) >> 4] + V[(opcode & 0x0F00) >> 8])&255;
+    V[0xF] = Vx + Vy > 255; //carry
+    Vx += Vy;
     pc += 2;
 }
 void Chip8::SUB_vx_vy(){
-    if(V[(opcode & 0x0F00) >> 8]>=V[(opcode & 0x00F0) >> 4])
-        V[0xF] = 1;
-    else
-        V[0xF] = 0;//borrow
-    V[(opcode & 0x0F00) >> 8] -= V[(opcode & 0x00F0) >> 4];
+    V[0xF] = Vx>Vy;//borrow
+    Vx -= Vy;
     pc += 2;
 }
 void Chip8::SHR_vx_vy(){
-    V[0xF] = V[(opcode & 0x0F00) >> 8] <<7;
-    V[(opcode & 0x0F00) >> 8]  /= 2;//to verify
+    V[0xF] = Vx & 1;
+    Vx /= 2;
     pc += 2;
 }
 void Chip8::SUBN_vx_vy(){
-    if(V[(opcode & 0x00F0) >> 4] >= V[(opcode & 0x0F00) >> 8])
-        V[0xF] = 1;
-    else
-        V[0xF] = 0;//borrow
-    V[(opcode & 0x0F00) >> 8] = V[(opcode & 0x00F0) >> 4]-V[(opcode & 0x0F00) >> 8];
+    V[0xF] = Vy > Vx;//borrow
+    Vx = Vy-Vx;
     pc += 2;
 }
 void Chip8::SHL_vx_vy(){
-    V[0xF] = V[(opcode & 0x0F00) >> 8] >>7;
-    V[(opcode & 0x0F00) >> 8] *= 2;
+    V[0xF] = Vx >>7;
+    Vx *= 2;
     pc += 2;//to verify
 }
 void Chip8::SNE_vx_vy(){
-    if(V[(opcode & 0x0F00) >> 8] != V[(opcode & 0x00F0) >> 4])
+    if(Vx != Vy)
         pc += 2;
     pc += 2;
 }
@@ -178,12 +170,12 @@ void Chip8::JP_v0_addr(){
     pc = V[0] + (opcode & 0x0FFF);
 }
 void Chip8::RND_vx_byte(){
-    V[(opcode & 0x0F00) >> 8] = opcode & 0x00FF & (rand()%255);
+    Vx = opcode & 0x00FF & (rand()%255);
     pc+=2;
 }
-void Chip8::DRW_vy_vy_nibble(){
-    unsigned short x = V[(opcode & 0x0F00) >> 8];
-    unsigned short y = V[(opcode & 0x00F0) >> 4];
+void Chip8::DRW_vx_vy_nibble(){
+    unsigned short x = Vx;
+    unsigned short y = Vy;
     unsigned short height = opcode & 0x000F;
     unsigned short pixel;
 
@@ -195,35 +187,36 @@ void Chip8::DRW_vy_vy_nibble(){
         {
             if((pixel & (0x80 >> xline)) != 0)
             {
-                if(gfx[(x + xline + ((y + yline) * 64))] == 1)
+                if(gfx[(x + xline + ((y + yline) * 64))])
                     V[0xF] = 1;
-                gfx[x + xline + ((y + yline) * 64)] ^= 1;
+                gfx[x + xline + ((y + yline) * 64)] = !gfx[x + xline + ((y + yline) * 64)];
             }
         }
     }
 
     drawFlag = true;
     pc += 2;
+    printf("\t\t\t-----------------------------------------------------I drew some stuff--------------------------------------------\n");
 }
 void Chip8::SKP_vx(){
-    if (keyboard[V[(opcode & 0x0F00) >> 8]] != 0)
+    if (keyboard[Vx] != 0)
         pc += 2;
     pc += 2;
 }
 void Chip8::SKNP_vx(){
-    if (keyboard[V[(opcode & 0x0F00) >> 8]] == 0)
+    if (keyboard[Vx] == 0)
         pc += 2;
     pc += 2;
 }
 void Chip8::LD_vx_dt(){
-    V[(opcode & 0x0F00) >> 8] = delay_timer;
+    Vx = delay_timer;
     pc += 2;
 }
 void Chip8::LD_vx_k(){
     bool press = false;
     for(int i=0; i<16; i++){
         if(keyboard[i] != 0){
-            V[(opcode & 0x0F00) >> 8] = i;
+            Vx = i;
             press = true;
         }
     }
@@ -233,36 +226,32 @@ void Chip8::LD_vx_k(){
     pc += 2;
 }
 void Chip8::LD_dt_vx(){
-    delay_timer = V[(opcode & 0x0F00) >> 8];
+    delay_timer = Vx;
     pc += 2;
 }
 void Chip8::LD_st_vx(){
-    sound_timer = V[(opcode & 0x0F00) >> 8];
+    sound_timer = Vx;
     pc += 2;
 }
 void Chip8::ADD_i_vx(){
-    I += V[(opcode & 0x0F00) >> 8];
+    I += Vx;
     pc += 2;
 }
 void Chip8::LD_f_vx(){
-    I = chip8_fontset[V[(opcode & 0x0F00) >> 8]];
+    I = chip8_fontset[Vx];
     pc += 2;
 }
 void Chip8::LD_B_vx(){
-    printf("%d\n",V[(opcode & 0x0F00) >> 8]);
-    memory[I] = V[(opcode & 0x0F00) >> 8]/100;
-    printf("%d\n",memory[I]);
-    memory[I+1] = (V[(opcode & 0x0F00) >> 8]/10)%10;
-    printf("%d\n",memory[I+1]);
-    memory[I+2] = V[(opcode & 0x0F00) >> 8]%10;
-    printf("%d\n",memory[I+2]);
+    printf("%d\n",Vx);
+    memory[I] = Vx/100;
+    memory[I+1] = (Vx/10)%10;
+    memory[I+2] = Vx%10;
     pc += 2;
 }
 void Chip8::LD_i_vx(){
     printf("%d\n",(opcode & 0x0F00) >> 8);
     for(int i = 0 ; i<=(opcode & 0x0F00) >> 8; i++ ){
         memory[I+i] = V[i];
-        printf("%d\n",memory[I+i]);
     }
     pc += 2;
 }
@@ -298,8 +287,9 @@ void Chip8::decode() {
 }
 void Chip8::emulateCycle(){
     // Fetch Opcode
+
     opcode = memory[pc] << 8 | memory[pc+1];
-    printf("0x%X-------",opcode);
+    printf("0x%X-------\n",opcode);
     // Execute Opcode
     decode();
     // Update timers
@@ -308,30 +298,31 @@ void Chip8::emulateCycle(){
     if(sound_timer > 0){
         if(sound_timer == 1)
             printf("Beep\n");
+            printf("\a\n");
         sound_timer--;
     }
 }
-/*void Chip8::takeinput() {
+void Chip8::takeinput() {
     SDL_Event event;
 
-    for (unsigned char & i : keyboard) {
-        i = 0;
+    for (bool & i : keyboard) {
+        i = false;
     }
     while( SDL_PollEvent( &event ) ){
-        SDL_Keycode keypressed = event.key.keysym.sym;
+        SDL_Keycode key_pressed = event.key.keysym.sym;
         if(event.type == SDL_KEYDOWN){
             //to edit later hadchi ila b9at
-            if(keyboard_map.find(keypressed) != keyboard_map.end()){
-                keyboard[keyboard_map[keypressed]] = 1;
+            if(keyboard_map.contains(key_pressed)){
+                keyboard[keyboard_map.at(key_pressed)] = true;
             }
         }
         else if(event.type == SDL_KEYUP){
-            if(keyboard_map.find(keypressed) != keyboard_map.end()){
-                keyboard[keyboard_map[keypressed]] = 0;
+            if(keyboard_map.contains(key_pressed)){
+                keyboard[keyboard_map.at(key_pressed)] = false;
             }
         }
     }
 
-}*/
+}
 
 

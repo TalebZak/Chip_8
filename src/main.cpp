@@ -8,7 +8,9 @@
 using namespace std;
 
 
+void main_loop(Chip8 myChip8){
 
+}
 int main(int argc, char **argv)
 
 {
@@ -28,14 +30,14 @@ int main(int argc, char **argv)
         }
         else{
             SDL_Surface* screenSurface = SDL_GetWindowSurface(window);
-            SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+            SDL_Renderer * renderer = SDL_CreateRenderer(window, -1, 0);
             SDL_Texture * texture = SDL_CreateTexture(renderer,
                                                       SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 64, 32);
             auto* pixels = new uint32_t[ 2048 ];
             int pitch;
 
             if(!myChip8.loadrom(
-                    "/home/zak/CLionProjects/Chip_8/tests/pong.rom")){
+                    "./tests/Pong (1 player).ch8")){
                 cout<<"No valid rom";
                 return 0;
             }
@@ -43,15 +45,16 @@ int main(int argc, char **argv)
 
             while(true){
                 // Emulate one cycle
+                myChip8.takeinput();
                 myChip8.emulateCycle();
 
-                cout<<myChip8.pc<<endl;
                 // If the draw flag is set, update the screen
                 SDL_LockTexture(texture, NULL, (void**)&pixels, &pitch);
 
 
                 for (int i = 0; i < 2048; i++)
                 {
+
                     if (!myChip8.gfx[i])
                     {
                         pixels[i] = 0000;

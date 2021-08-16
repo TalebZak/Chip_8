@@ -21,12 +21,13 @@ public:
     unsigned char sound_timer;
     unsigned short stack[16];
     unsigned short stack_pointer;
-    unsigned char keyboard[16];
+    bool keyboard[16];
     bool drawFlag;
     bool loadrom(string);
     void emulateCycle();
-private:
     void takeinput();
+private:
+
     void CLS();
     void RET();
     void JP_addr();
@@ -49,7 +50,7 @@ private:
     void LD_I_addr();
     void JP_v0_addr();
     void RND_vx_byte();
-    void DRW_vy_vy_nibble();
+    void DRW_vx_vy_nibble();
     void SKP_vx();
     void SKNP_vx();
     void LD_vx_dt();
@@ -103,7 +104,7 @@ private:
             {0xA000,&Chip8::LD_I_addr},
             {0xB000,&Chip8::JP_v0_addr},
             {0xC000,&Chip8::RND_vx_byte},
-            {0xD000,&Chip8::DRW_vy_vy_nibble},
+            {0xD000,&Chip8::DRW_vx_vy_nibble},
             {0xE00E,&Chip8::SKP_vx},
             {0xE001,&Chip8::SKNP_vx},
             {0xF007,&Chip8::LD_vx_dt},
@@ -115,6 +116,6 @@ private:
             {0xF033,&Chip8::LD_B_vx},
             {0xF055,&Chip8::LD_i_vx},
             {0xF065,&Chip8::LD_vx_i},
-            };
+    };
 };
 

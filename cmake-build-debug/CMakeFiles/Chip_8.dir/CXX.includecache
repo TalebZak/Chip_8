@@ -6,24 +6,22 @@
 
 #IncludeRegexTransform: 
 
-/home/zak/CLionProjects/Chip_8/src/chip-8.cpp
-chip-8.h
 /home/zak/CLionProjects/Chip_8/src/chip-8.h
 iostream
 -
-fstream
--
-unistd.h
--
 unordered_map
 -
-utility
+SDL.h
 -
 
-/home/zak/CLionProjects/Chip_8/src/chip-8.h
+/home/zak/CLionProjects/Chip_8/src/main.cpp
 iostream
 -
-unordered_map
+chip-8.h
+/home/zak/CLionProjects/Chip_8/src/chip-8.h
+fstream
+-
+string
 -
 SDL.h
 -
